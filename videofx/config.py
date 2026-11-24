@@ -20,6 +20,19 @@ DEFAULTS = {
     "scenes_dir": "images_out",
     "audio_dir": "audio_out",
     "output_dir": "out",
+    "provider": "template",
+    "model": None,
+    "api_key": None,
+    "script_style": "viral",
+    "duration_target": 30,
+    "transitions": ["fade", "slideleft", "zoomin", "smoothleft", "circleopen"],
+    "transition_duration": 0.5,
+    "subtitle_style": "pop",
+    "particles": True,
+    "shine": True,
+    "vignette": True,
+    "color_boost": True,
+    "progress_bar": True,
 }
 
 ASPECTS = {
@@ -36,10 +49,7 @@ def load_config(path):
     cfg.update(user)
     if cfg.get("aspect") in ASPECTS and "resolution" not in user:
         cfg["resolution"] = ASPECTS[cfg["aspect"]]
-    if not cfg.get("title"):
-        cfg["title"] = cfg["topic"]
     for key in ("voice", "scenes_dir", "audio_dir", "output_dir"):
-        cfg[key] = os.path.join(ROOT, cfg[key]) if not os.path.isabs(cfg[key]) else cfg[key]
-    if not os.path.isabs(cfg["voice"]) and os.path.exists(os.path.join(ROOT, cfg["voice"])):
-        cfg["voice"] = os.path.join(ROOT, cfg["voice"])
+        if not os.path.isabs(cfg[key]):
+            cfg[key] = os.path.join(ROOT, cfg[key])
     return cfg
