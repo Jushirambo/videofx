@@ -14,6 +14,16 @@ config JSON ──> roteiro (cenas)
                  └─> ffmpeg: Ken Burns + legendas + título + mix de áudio
 ```
 
+## Rodar sem instalar nada
+
+**Google Colab (1 clique):**
+
+[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Jushirambo/videofx/blob/main/videofx_colab.ipynb)
+
+O notebook `videofx_colab.ipynb` instala tudo, oferece formulário + interface Gradio interativa e baixa o MP4 no navegador.
+
+**Kaggle:** *File → Import Notebook → from GitHub* → cole `https://github.com/Jushirambo/videofx` → Settings → **Internet: ON**.
+
 ## Requisitos
 
 - Python 3.10+
