@@ -1,0 +1,12 @@
+{
+    "topic": "Fatos incríveis sobre o universo",
+    "title": "5 FATOS DO UNIVERSO",
+    "aspect": "9:16",
+    "fps": 30,
+    "music_mood": "calm",
+    "music_volume": 0.16,
+    "subtitle_max_chars": 26,
+    "subtitle_size": 64,
+    "allow_ai_images": true,
+    "output_name": "demo_universo.mp4"
+}

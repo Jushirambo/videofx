@@ -1,0 +1,27 @@
+{
+    "title": "5 FATOS DO UNIVERSO",
+    "aspect": "9:16",
+    "music_mood": "calm",
+    "music_volume": 0.16,
+    "subtitle_max_chars": 26,
+    "subtitle_size": 64,
+    "output_name": "demo_universo.mp4",
+    "scenes": [
+        "Prepare-se: cinco fatos sobre o universo que vão te surpreender.",
+        "Existem mais de dois trilhões de galáxias só no universo observável.",
+        "A luz do Sol leva oito minutos para chegar até nós.",
+        "Existem mais estrelas na galáxia do que grãos de areia na Terra.",
+        "No espaço, nenhum ser vivo consegue gritar, porque não há som.",
+        "Um dia em Vênus dura mais que um ano em Vênus.",
+        "E o universo ainda está se expandindo, cada vez mais rápido."
+    ],
+    "image_urls": [
+        "https://mistralaiblackforestprod.blob.core.windows.net/images/pruna/32fa/3bde/-d64/5-4fcc-ae30-7eca2cffe36e/image.jpg?se=2026-11-24T18%3A52%3A05Z&sp=r&sv=2026-02-06&sr=b&skoid=8aae9820-8683-45ec-b557-e441def5aa94&sktid=4fbc1168-2984-4d17-af19-ac5138c2378e&skt=2026-11-24T17%3A52%3A05Z&ske=2026-11-24T18%3A52%3A05Z&sks=b&skv=2026-02-06&sig=6aXJDLdAMe6Lg0DvWbxDK8tx3yGWTIKNViqKJrtB4TE%3D",
+        "https://mistralaiblackforestprod.blob.core.windows.net/images/pruna/f56e/c6e4/-34a/c-461f-a948-82703cab6eac/image.jpg?se=2026-11-24T18%3A52%3A05Z&sp=r&sv=2026-02-06&sr=b&skoid=8aae9820-8683-45ec-b557-e441def5aa94&sktid=4fbc1168-2984-4d17-af19-ac5138c2378e&skt=2026-11-24T17%3A52%3A05Z&ske=2026-11-24T18%3A52%3A05Z&sks=b&skv=2026-02-06&sig=e1dsBCPWQgIlt%2BliN6JXpyD3alPbdUb58IE2w2LLVAo%3D",
+        "https://mistralaiblackforestprod.blob.core.windows.net/images/pruna/7583/208b/-e70/8-4e67-8bec-04aad371c2ab/image.jpg?se=2026-11-24T18%3A52%3A05Z&sp=r&sv=2026-02-06&sr=b&skoid=8aae9820-8683-45ec-b557-e441def5aa94&sktid=4fbc1168-2984-4d17-af19-ac5138c2378e&skt=2026-11-24T17%3A52%3A05Z&ske=2026-11-24T18%3A52%3A05Z&sks=b&skv=2026-02-06&sig=MZKCnE98FLzNedUhZty/I7bTC5q5bgyGpcg1KKmsRJs%3D",
+        "https://mistralaiblackforestprod.blob.core.windows.net/images/pruna/7a63/7259/-bda/e-4ee5-a53d-9b9e507a3105/image.jpg?se=2026-11-24T18%3A52%3A04Z&sp=r&sv=2026-02-06&sr=b&skoid=8aae9820-8683-45ec-b557-e441def5aa94&sktid=4fbc1168-2984-4d17-af19-ac5138c2378e&skt=2026-11-24T17%3A52%3A04Z&ske=2026-11-24T18%3A52%3A04Z&sks=b&skv=2026-02-06&sig=CeUVjgHPKYCMMRl3Iy1HvSloIcdcdTYJg5bqojQVoVA%3D",
+        "https://mistralaiblackforestprod.blob.core.windows.net/images/pruna/98e7/3d0c/-f13/2-4ca2-9770-a668efca4ea7/image.jpg?se=2026-11-24T18%3A52%3A04Z&sp=r&sv=2026-02-06&sr=b&skoid=8aae9820-8683-45ec-b557-e441def5aa94&sktid=4fbc1168-2984-4d17-af19-ac5138c2378e&skt=2026-11-24T17%3A52%3A04Z&ske=2026-11-24T18%3A52%3A04Z&sks=b&skv=2026-02-06&sig=Lxxl1zhPX2DLitQLMVUQD0T0GKbGIwUh63j5Mfw2CN8%3D",
+        "https://mistralaiblackforestprod.blob.core.windows.net/images/pruna/def0/efc4/-df4/6-45db-acb5-73d87bd9e704/image.jpg?se=2026-11-24T18%3A52%3A05Z&sp=r&sv=2026-02-06&sr=b&skoid=8aae9820-8683-45ec-b557-e441def5aa94&sktid=4fbc1168-2984-4d17-af19-ac5138c2378e&skt=2026-11-24T17%3A52%3A05Z&ske=2026-11-24T18%3A52%3A05Z&sks=b&skv=2026-02-06&sig=oivD6a/3zkvFBaydMHPNMBm4EXbEGO4L0MStrX8juKE%3D",
+        "https://mistralaiblackforestprod.blob.core.windows.net/images/pruna/ca89/bce6/-d1c/4-4476-a448-ed753311c6fb/image.jpg?se=2026-11-24T18%3A52%3A06Z&sp=r&sv=2026-02-06&sr=b&skoid=8aae9820-8683-45ec-b557-e441def5aa94&sktid=4fbc1168-2984-4d17-af19-ac5138c2378e&skt=2026-11-24T17%3A52%3A06Z&ske=2026-11-24T18%3A52%3A06Z&sks=b&skv=2026-02-06&sig=PtbviWa8JjxLAg7afagrrOHeHS3rdlleR%2BgG%2BLXvSbw%3D"
+    ]
+}
