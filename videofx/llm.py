@@ -1,12 +1,20 @@
 import json
 import os
 import re
+import time
+import urllib.error
 import urllib.request
 
 DEFAULT_MODELS = {
     "openrouter": "meta-llama/llama-3.3-70b-instruct",
     "huggingface": "meta-llama/Llama-3.1-8B-Instruct",
     "gemini": "gemini-2.5-flash",
+}
+
+MODEL_FALLBACKS = {
+    "openrouter": ["meta-llama/llama-3.3-70b-instruct:free"],
+    "gemini": ["gemini-flash-latest", "gemini-2.0-flash"],
+    "huggingface": ["meta-llama/Meta-Llama-3-8B-Instruct"],
 }
 
 ENV_KEYS = {
@@ -65,7 +73,11 @@ def resolve_key(cfg, provider):
         key = os.environ.get(name)
         if key:
             return key
-    return cfg.get("api_key") or None
+    if provider == cfg.get("provider"):
+        return cfg.get("api_key") or None
+    if cfg.get("provider") == "auto" and provider == "openrouter":
+        return cfg.get("api_key") or None
+    return None
 
 
 def _extract_json(text):
@@ -79,7 +91,27 @@ def _extract_json(text):
     return data.get("title", ""), scenes
 
 
-def chat(provider, system, user, model, api_key):
+def _http_error(name, e):
+    body = ""
+    try:
+        body = e.read().decode()[:300]
+    except Exception:
+        pass
+    return RuntimeError(f"{name} HTTP {e.code}: {body}")
+
+
+def _post_with_retry(url, body, headers, name, timeout=90):
+    for attempt in range(2):
+        req = urllib.request.Request(url, data=body, method="POST")
+        for k, v in headers.items():
+            req.add_header(k, v)
+        try:
+            return urllib.request.urlopen(req, timeout=timeout).read()
+        except urllib.error.HTTPError as e:
+            if e.code in (429, 500, 502, 503) and attempt == 0:
+                time.sleep(2)
+                continue
+            raise _http_error(name, e)
     if provider == "gemini":
         return _chat_gemini(system, user, model, api_key)
     if provider == "openrouter":
@@ -97,17 +129,14 @@ def chat(provider, system, user, model, api_key):
         "temperature": 0.9,
         "max_tokens": 1200,
     }).encode()
-    req = urllib.request.Request(url, data=body, method="POST")
-    req.add_header("Authorization", "Bearer " + api_key)
-    req.add_header("Content-Type", "application/json")
-    req.add_header("HTTP-Referer", "https://github.com/Jushirambo/videofx")
-    req.add_header("User-Agent", "videofx/2.0")
-    try:
-        r = urllib.request.urlopen(req, timeout=90)
-        data = json.loads(r.read().decode())
-        return data["choices"][0]["message"]["content"]
-    except json.JSONDecodeError as e:
-        raise RuntimeError(f"{provider}: resposta não JSON: {e}")
+    headers = {
+        "Authorization": "Bearer " + api_key,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://github.com/Jushirambo/videofx",
+        "User-Agent": "videofx/2.0",
+    }
+    data = json.loads(_post_with_retry(url, body, headers, provider).decode())
+    return data["choices"][0]["message"]["content"]
 
 
 def _chat_gemini(system, user, model, api_key):
@@ -120,16 +149,10 @@ def _chat_gemini(system, user, model, api_key):
         "contents": [{"role": "user", "parts": [{"text": user}]}],
         "generationConfig": {"temperature": 0.9, "maxOutputTokens": 1200},
     }).encode()
-    req = urllib.request.Request(url, data=body, method="POST")
-    req.add_header("Content-Type", "application/json")
-    req.add_header("User-Agent", "videofx/2.0")
-    try:
-        r = urllib.request.urlopen(req, timeout=90)
-        data = json.loads(r.read().decode())
-        parts = data["candidates"][0]["content"]["parts"]
-        return "".join(p["text"] for p in parts if "text" in p)
-    except Exception as e:
-        raise RuntimeError(f"gemini indisponível: {type(e).__name__}: {str(e)[:200]}")
+    data = json.loads(_post_with_retry(url, body, {"Content-Type": "application/json"},
+                                       "gemini").decode())
+    parts = data["candidates"][0]["content"]["parts"]
+    return "".join(p["text"] for p in parts if "text" in p)
 
 
 def generate_script(cfg):
@@ -147,15 +170,21 @@ def generate_script(cfg):
         if not key:
             tried.append(f"{provider}:sem chave")
             continue
-        model = ((cfg.get("models") or {}).get(provider)
-                 or (cfg.get("model") if provider == cfg.get("provider") else None)
-                 or DEFAULT_MODELS[provider])
-        try:
-            content = chat(provider, SYSTEM_PROMPT, user, model, key)
-            title, scenes = _extract_json(content)
-            return title, scenes
-        except Exception as e:
-            tried.append(f"{provider}:{type(e).__name__}")
+        models = []
+        chosen = (cfg.get("models") or {}).get(provider)
+        if chosen:
+            models.append(chosen)
+        elif provider == cfg.get("provider") and cfg.get("model"):
+            models.append(cfg["model"])
+        models += [DEFAULT_MODELS[provider]] if DEFAULT_MODELS[provider] not in models else []
+        models += [m for m in MODEL_FALLBACKS.get(provider, []) if m not in models]
+        for model in models:
+            try:
+                content = chat(provider, SYSTEM_PROMPT, user, model, key)
+                title, scenes = _extract_json(content)
+                return title, scenes
+            except Exception as e:
+                tried.append(f"{provider}({model}):{str(e)[:160]}")
     raise RuntimeError(
-        "nenhum provedor de roteiro funcionou (" + ", ".join(tried) + ")"
+        "nenhum provedor de roteiro funcionou \n  - " + "\n  - ".join(tried)
     )

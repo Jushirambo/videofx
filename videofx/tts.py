@@ -2,6 +2,7 @@ import json
 import os
 import subprocess
 import tempfile
+import urllib.error
 import urllib.request
 import wave
 
@@ -43,11 +44,10 @@ def ensure_voice(voice_path):
 
 
 def elevenlabs_tts(text, key, out_wav, voice_id, timeout=90):
-    model = "eleven_multilingual_v2"
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}?output_format=pcm_24000"
     body = json.dumps({
         "text": text,
-        "model_id": model,
+        "model_id": "eleven_multilingual_v2",
         "voice_settings": {"stability": 0.45, "similarity_boost": 0.75,
                            "style": 0.2, "use_speaker_boost": True},
     }).encode()
@@ -55,7 +55,15 @@ def elevenlabs_tts(text, key, out_wav, voice_id, timeout=90):
     req.add_header("xi-api-key", key)
     req.add_header("Content-Type", "application/json")
     req.add_header("User-Agent", "videofx/2.0")
-    pcm = urllib.request.urlopen(req, timeout=timeout).read()
+    try:
+        pcm = urllib.request.urlopen(req, timeout=timeout).read()
+    except urllib.error.HTTPError as e:
+        detail = ""
+        try:
+            detail = e.read().decode()[:300]
+        except Exception:
+            pass
+        raise RuntimeError(f"elevenlabs HTTP {e.code}: {detail}")
     if len(pcm) < 1000:
         raise RuntimeError("resposta curta")
     with wave.open(out_wav, "wb") as w:
@@ -104,6 +112,6 @@ def synthesize(text, cfg, out_wav):
                 print(f"[tts] piper: {d:.2f}s")
                 return d
         except Exception as e:
-            print(f"[tts] {p} falhou ({type(e).__name__}), tentando próximo...")
-            errs.append(f"{p}:{type(e).__name__}")
+            print(f"[tts] {p} falhou ({str(e)[:200]}), tentando próximo...")
+            errs.append(f"{p}:{str(e)[:120]}")
     raise RuntimeError("nenhum provedor de voz funcionou (" + ", ".join(errs) + ")")

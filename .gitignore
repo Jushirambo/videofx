@@ -3,3 +3,4 @@ __pycache__/
 audio_out/*.wav
 voices/*.onnx
 voices/*.json
+out/v3_test.mp4

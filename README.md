@@ -23,8 +23,10 @@ Use `"provider": "auto"` para tentar toda a cadeia de roteiro automaticamente.
 ## Trechos do YouTube
 
 Cenas podem usar trechos de vídeos do YouTube como fundo (download parcial via `yt-dlp`),
-recortados e convertidos para o formato do vídeo (1080×1920, mute). Se um clipe falhar,
-a cena volta para a cadeia de imagens automaticamente.
+recortados e convertidos para o formato do vídeo (1080×1920, mute). Cenas com a mesma
+divisa-fonte compartilham **um único download** e recebem trechos consecutivos (cena 1
+fica pelo início, cena 2 continua de onde a 1 parou) — sem re-baixar o mesmo trecho.
+Se uma fonte falhar, as cenas dela voltam para a cadeia de imagens automaticamente.
 
 ```jsonc
 {

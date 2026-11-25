@@ -5,10 +5,40 @@ import subprocess
 
 import imageio_ffmpeg
 
-TRANSFORM_TMPL = (
-    "scale=-2:{h},crop={w}:{h}:(iw-{w})/2:0,fps={fps},"
-    "eq=contrast=1.05:saturation=1.15"
-)
+TRANSFORM_TMPL = "scale=-2:{h},crop={w}:{h}:(iw-{w})/2:0,fps={fps}"
+
+
+class _Logger:
+    def __init__(self):
+        self.msgs = []
+
+    def debug(self, msg):
+        pass
+
+    def info(self, msg):
+        pass
+
+    def warning(self, msg):
+        pass
+
+    def error(self, msg):
+        if msg:
+            self.msgs.append(str(msg))
+
+
+def parse_spec(spec):
+    if isinstance(spec, dict):
+        return dict(spec)
+    left, _, right = spec.partition("|")
+    start = 0.0
+    rs = right.strip()
+    if rs.replace(".", "", 1).isdigit():
+        start = float(rs)
+    return {"source": left.strip(), "start": start}
+
+
+def spec_source(spec):
+    return spec.get("url") or spec.get("source")
 
 
 def _shim_dir():
@@ -20,63 +50,24 @@ def _shim_dir():
             os.symlink(imageio_ffmpeg.get_ffmpeg_exe(), shim)
         except OSError:
             shutil.copy(imageio_ffmpeg.get_ffmpeg_exe(), shim)
-        ffprobe = os.path.join(bin_dir, "ffprobe")
-        src = os.path.join(os.path.dirname(imageio_ffmpeg.get_ffmpeg_exe()), "ffprobe")
-        if os.path.exists(src) and not os.path.exists(ffprobe):
-            os.symlink(src, ffprobe)
     return bin_dir
 
 
-def parse_spec(spec):
-    if isinstance(spec, dict):
-        return dict(spec)
-    if "|" in spec:
-        left, _, right = spec.partition("|")
-        return {"source": left.strip(), "start": float(right) if right.replace(".", "", 1).strip("-").isdigit() else 0.0}
-    return {"source": spec.strip()}
-
-
-def resolve_url(spec):
-    src = spec.get("url") or spec.get("source")
-    if not src:
-        raise RuntimeError("spec sem url/query")
-    return src
-
-
-def auto_query(topic, text):
-    words = [w for w in text.split() if len(w) > 4][:4]
-    q = " ".join(words) if words else topic
-    return f"{q} {topic} 4k b roll"
-
-
-class _Logger:
-    def debug(self, msg):
-        pass
-
-    def info(self, msg):
-        pass
-
-    def warning(self, msg):
-        pass
-
-    def error(self, msg):
-        pass
-
-
-def download_clip(spec, dest, height=720, duration=None):
+def download_clip(spec, dest, height=720):
     import yt_dlp
 
-    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    os.makedirs(os.path.dirname(dest) or ".", exist_ok=True)
     shim = _shim_dir()
     if shim not in os.environ.get("PATH", ""):
         os.environ["PATH"] = shim + os.pathsep + os.environ.get("PATH", "")
 
-    src = resolve_url(spec)
-    if src.startswith("ytsearch:") or not src.startswith(("http://", "https://", "ytsearch")):
-        if not src.startswith("ytsearch:"):
-            src = f"ytsearch1:{src}"
+    src = spec_source(spec)
+    if not src:
+        raise RuntimeError("spec sem url/query")
+    if not src.startswith(("http://", "https://")) and not src.startswith("ytsearch:"):
+        src = f"ytsearch1:{src}"
     start = float(spec.get("start") or 0)
-    dur = duration or float(spec.get("duration") or 8)
+    dur = float(spec.get("duration") or 8)
 
     def ranges(info, ydl):
         return [{"start_time": max(start, 0), "end_time": max(start, 0) + dur}]
@@ -85,6 +76,7 @@ def download_clip(spec, dest, height=720, duration=None):
         f"bv*[height<={height}][ext=mp4]+ba[ext=m4a]/b[height<={height}]/"
         f"bv*[height<={height}]+ba/b"
     )
+    logger = _Logger()
     opts = {
         "format": fmt,
         "download_ranges": ranges,
@@ -94,50 +86,75 @@ def download_clip(spec, dest, height=720, duration=None):
         "noplaylist": True,
         "quiet": True,
         "no_warnings": True,
-        "logger": _Logger(),
+        "logger": logger,
         "retries": 2,
         "socket_timeout": 30,
     }
-    with yt_dlp.YoutubeDL(opts) as ydl:
-        ydl.download([src])
+    try:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            ydl.download([src])
+    except Exception as e:
+        tail = " | ".join(logger.msgs[-2:])
+        raise RuntimeError(f"{str(e)[:200]}{(' | ' + tail[:300]) if tail else ''}")
     hits = sorted(glob.glob(dest + ".*"))
     if not hits:
-        raise RuntimeError("download sem resultado")
+        raise RuntimeError("download sem resultado" +
+                           (" | " + " | ".join(logger.msgs[-2:]) if logger.msgs else ""))
     if not hits[0].endswith(".mp4"):
         os.rename(hits[0], dest + ".mp4")
         hits = [dest + ".mp4"]
     return hits[0]
 
 
-def convert_clip(raw, dest, size, fps, duration, work):
+def convert_clip(raw, dest, size, fps, duration, work, offset=0.0):
     w, h = size
     cmd = [
         imageio_ffmpeg.get_ffmpeg_exe(), "-y", "-loglevel", "error",
+    ]
+    if offset > 0:
+        cmd += ["-ss", f"{offset:.3f}"]
+    cmd += [
         "-i", raw,
         "-vf", TRANSFORM_TMPL.format(h=h, w=w, fps=fps),
         "-an", "-t", f"{duration:.2f}",
         "-pix_fmt", "yuv420p", "-c:v", "libx264", "-preset", "veryfast",
         "-movflags", "+faststart", dest,
     ]
-    p = subprocess.run(cmd, capture_output=True, cwd=work)
+    p = subprocess.run(cmd, capture_output=True, cwd=work or os.path.dirname(dest))
     if p.returncode != 0:
-        raise RuntimeError("ffmpeg falhou: " + p.stderr.decode()[-300:])
+        raise RuntimeError("ffmpeg falhou: " + p.stderr.decode()[-200:])
 
 
-def resolve_scene_video(spec, index, dest, size, fps, duration, height=720):
-    raw = dest + ".raw.mp4"
-    try:
-        if isinstance(spec, str):
-            spec = parse_spec(spec)
-        dl_spec = dict(spec)
-        dl_spec["duration"] = spec.get("duration") or duration + 1
-        real = download_clip(dl_spec, raw, height=height, duration=dl_spec["duration"])
-        convert_clip(real, dest, size, fps, duration, os.path.dirname(dest))
-        return dest
-    except Exception as e:
-        print(f"[yt] cena {index + 1}: {type(e).__name__}: {str(e)[:120]} — usando imagem")
-        return None
-    finally:
-        for f in (raw,):
-            if os.path.exists(f):
-                os.unlink(f)
+def source_key(spec):
+    return spec_source(spec)
+
+
+def prepare_sources(assignments, visual_durs, work, height=720, log=lambda m: None):
+    """Baixa uma vez por fonte (cenas consecutivas com a mesma fonte compartilham
+    o download) e devolve {id_da_fonte: caminho_do_raw}."""
+    groups = []
+    for i, a in enumerate(assignments):
+        k = source_key(a)
+        if groups and groups[-1][0] == k:
+            groups[-1][1].append(i)
+        else:
+            groups.append([k, [i]])
+    raws = {}
+    for k, idxs in groups:
+        raw = os.path.join(work, f"ytraw_{abs(hash(k)) % 10**8}_{idxs[0]}.mp4")
+        total = sum(visual_durs[i] for i in idxs) + 1.0
+        dl = dict(assignments[idxs[0]])
+        dl["duration"] = total
+        try:
+            raws[k] = download_clip(dl, raw, height=height)
+            log(f"[yt] baixado 1 trecho ({total:.0f}s) para {len(idxs)} cena(s): {k[:60]}")
+        except Exception as e:
+            log(f"[yt] fonte falhou: {str(e)[:220]}")
+            raws[k] = None
+    return raws, groups
+
+
+def auto_query(topic, text):
+    words = [w for w in text.split() if len(w) > 4][:4]
+    q = " ".join(words) if words else topic
+    return f"{q} {topic} 4k b roll"

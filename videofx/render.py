@@ -10,7 +10,7 @@ from .images import fetch_image_urls, resolve_scene_image
 from .llm import generate_script, script_chain
 from .music import generate_music
 from .tts import synthesize
-from .ytclips import auto_query, parse_spec, resolve_scene_video
+from .ytclips import auto_query, parse_spec, prepare_sources, convert_clip
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FONT = os.path.join(ROOT, "assets", "fonts", "DejaVuSans-Bold.ttf")
@@ -221,32 +221,54 @@ def render(cfg, keep_temp=False):
     mind = cfg["min_scene_duration"]
     visual_durs = [max(d + pad, mind) for d in scene_durs]
 
-    yt_specs = cfg.get("yt_clips") or None
-    if yt_specs:
-        yt_specs = [parse_spec(s) for s in yt_specs]
+    yt_raw = cfg.get("yt_clips") or None
+    assignments = None
+    if yt_raw:
+        specs = [parse_spec(s) for s in yt_raw]
+        assignments = [specs[i % len(specs)] for i in range(len(scenes))]
+    elif cfg.get("yt_auto"):
+        assignments = [{"source": auto_query(cfg["topic"], t), "start": 0} for t in scenes]
+
+    raws, groups = (None, None)
+    if assignments:
+        raws, groups = prepare_sources(assignments, visual_durs, work,
+                                       height=cfg.get("yt_height", 720), log=print)
+
     clip_paths = []
-    for i, text in enumerate(scenes):
-        spec = None
-        if yt_specs:
-            spec = yt_specs[i % len(yt_specs)]
-        elif cfg.get("yt_auto"):
-            spec = {"source": auto_query(cfg["topic"], text), "start": 0}
-        clip = None
-        if spec:
-            vid = os.path.join(work, f"ytclip{i}.mp4")
-            clip = resolve_scene_video(spec, i, vid, (W, H), fps, visual_durs[i] + 0.3,
-                                       height=cfg.get("yt_height", 720))
-            if clip:
-                print(f"[video] cena {i + 1}: trecho do youtube")
-        if clip is None:
+    for gi, (k, idxs) in enumerate(groups) if groups else []:
+        acc = 0.0
+        raw = raws.get(k)
+        for i in idxs:
+            clip = None
+            if raw:
+                vid = os.path.join(work, f"ytclip{i}.mp4")
+                try:
+                    convert_clip(raw, vid, (W, H), fps, visual_durs[i] + 0.3, work,
+                                 offset=acc)
+                    acc += visual_durs[i]
+                    clip = vid
+                    print(f"[video] cena {i + 1}: trecho do youtube")
+                except Exception as e:
+                    print(f"[yt] cena {i + 1}: {str(e)[:160]} — usando imagem")
+            if clip is None:
+                img = resolve_scene_image(scenes[i], cfg["topic"], i, cfg["scenes_dir"], (W, H),
+                                          allow_ai=cfg.get("allow_ai_images", True), cfg=cfg)
+                clip = os.path.join(work, f"clip{i}.mp4")
+                render_scene_clip(img, clip, visual_durs[i], (W, H), fps,
+                                  zoom_in=(i % 2 == 0), work=work,
+                                  color_boost=cfg.get("color_boost", True))
+                print(f"[video] cena {i + 1}: {img}")
+            clip_paths.append(clip)
+    if groups is None:
+        for i, text in enumerate(scenes):
             img = resolve_scene_image(text, cfg["topic"], i, cfg["scenes_dir"], (W, H),
                                       allow_ai=cfg.get("allow_ai_images", True), cfg=cfg)
             clip = os.path.join(work, f"clip{i}.mp4")
             render_scene_clip(img, clip, visual_durs[i], (W, H), fps,
                               zoom_in=(i % 2 == 0), work=work,
                               color_boost=cfg.get("color_boost", True))
+            clip_paths.append(clip)
             print(f"[video] cena {i + 1}: {img}")
-        clip_paths.append(clip)
 
     transitions = build_transitions(len(clip_paths), cfg)
     joined = xfade_chain(clip_paths, visual_durs, transitions, td, work)
