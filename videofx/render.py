@@ -232,7 +232,8 @@ def render(cfg, keep_temp=False):
     raws, groups = (None, None)
     if assignments:
         raws, groups = prepare_sources(assignments, visual_durs, work,
-                                       height=cfg.get("yt_height", 720), log=print)
+                                       height=cfg.get("yt_height", 720),
+                                       topic=cfg.get("topic"), log=print)
 
     clip_paths = []
     for gi, (k, idxs) in enumerate(groups) if groups else []:

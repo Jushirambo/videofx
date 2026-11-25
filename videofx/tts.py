@@ -92,10 +92,15 @@ def piper_tts(text, voice_path, out_wav):
         return w.getnframes() / w.getframerate()
 
 
+_DISABLED = set()
+
+
 def synthesize(text, cfg, out_wav):
     chain = cfg.get("tts_providers") or ["elevenlabs", "piper"]
     errs = []
     for p in chain:
+        if p in _DISABLED:
+            continue
         try:
             if p == "elevenlabs":
                 key = (cfg.get("api_keys") or {}).get("elevenlabs") or env_key("elevenlabs")
@@ -112,6 +117,10 @@ def synthesize(text, cfg, out_wav):
                 print(f"[tts] piper: {d:.2f}s")
                 return d
         except Exception as e:
-            print(f"[tts] {p} falhou ({str(e)[:200]}), tentando próximo...")
-            errs.append(f"{p}:{str(e)[:120]}")
+            msg = str(e)
+            print(f"[tts] {p} falhou ({msg[:200]}), tentando próximo...")
+            if p == "elevenlabs" and ("HTTP 402" in msg or "paid_plan_required" in msg):
+                _DISABLED.add(p)
+                print("[tts] elevenlabs desativado nesta sessão: contas gratuitas não usam library voices via API — Piper assume")
+            errs.append(f"{p}:{msg[:120]}")
     raise RuntimeError("nenhum provedor de voz funcionou (" + ", ".join(errs) + ")")

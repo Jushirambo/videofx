@@ -112,6 +112,7 @@ def _post_with_retry(url, body, headers, name, timeout=90):
                 time.sleep(2)
                 continue
             raise _http_error(name, e)
+def chat(provider, system, user, model, api_key):
     if provider == "gemini":
         return _chat_gemini(system, user, model, api_key)
     if provider == "openrouter":

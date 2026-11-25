@@ -129,9 +129,27 @@ def source_key(spec):
     return spec_source(spec)
 
 
-def prepare_sources(assignments, visual_durs, work, height=720, log=lambda m: None):
-    """Baixa uma vez por fonte (cenas consecutivas com a mesma fonte compartilham
-    o download) e devolve {id_da_fonte: caminho_do_raw}."""
+STOP_WORDS = {
+    "de", "da", "do", "dos", "das", "que", "com", "para", "por", "uma", "um",
+    "sobre", "mais", "e", "o", "a", "os", "as", "no", "na", "em", "é", "ao",
+    "preste", "atenção", "porque", "prepare", "aqui", "vai", "este", "isso",
+}
+
+
+def auto_query(topic, text):
+    words = []
+    for w in text.split():
+        wl = w.lower().strip(".,!?;:")
+        if len(wl) > 3 and wl not in STOP_WORDS and wl not in words:
+            words.append(wl)
+        if len(words) == 3:
+            break
+    tail = [t.lower() for t in topic.split()
+            if t.lower() not in words and t.lower() not in STOP_WORDS][:3]
+    return " ".join(words + tail + ["4k"])
+
+
+def prepare_sources(assignments, visual_durs, work, height=720, topic=None, log=lambda m: None):
     groups = []
     for i, a in enumerate(assignments):
         k = source_key(a)
@@ -146,7 +164,7 @@ def prepare_sources(assignments, visual_durs, work, height=720, log=lambda m: No
         dl = dict(assignments[idxs[0]])
         dl["duration"] = total
         try:
-            raws[k] = download_clip(dl, raw, height=height)
+            raws[k] = _download_or_retry(dl, raw, height, topic, total)
             log(f"[yt] baixado 1 trecho ({total:.0f}s) para {len(idxs)} cena(s): {k[:60]}")
         except Exception as e:
             log(f"[yt] fonte falhou: {str(e)[:220]}")
@@ -154,7 +172,11 @@ def prepare_sources(assignments, visual_durs, work, height=720, log=lambda m: No
     return raws, groups
 
 
-def auto_query(topic, text):
-    words = [w for w in text.split() if len(w) > 4][:4]
-    q = " ".join(words) if words else topic
-    return f"{q} {topic} 4k b roll"
+def _download_or_retry(dl, raw, height, topic, total):
+    try:
+        return download_clip(dl, raw, height=height)
+    except Exception:
+        if not str(dl.get("url") or dl.get("source", "")).startswith(("http://", "https://")) and topic:
+            retry = {"source": f"{topic} 4k", "start": 0, "duration": total}
+            return download_clip(retry, raw, height=height)
+        raise
