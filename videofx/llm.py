@@ -12,10 +12,52 @@ DEFAULT_MODELS = {
 }
 
 MODEL_FALLBACKS = {
-    "openrouter": ["meta-llama/llama-3.3-70b-instruct:free"],
-    "gemini": ["gemini-flash-latest", "gemini-2.0-flash"],
     "huggingface": ["meta-llama/Meta-Llama-3-8B-Instruct"],
 }
+
+GEMINI_PREF = ("gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash")
+
+_model_cache = {"gemini": None, "openrouter_free": None}
+
+
+def gemini_models(api_key):
+    if _model_cache["gemini"] is not None:
+        return _model_cache["gemini"]
+    try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}&pageSize=100"
+        req = urllib.request.Request(url, headers={"User-Agent": "videofx/2.0"})
+        data = json.loads(urllib.request.urlopen(req, timeout=20).read().decode())
+        names = []
+        for m in data.get("models", []):
+            if "generateContent" in (m.get("supportedGenerationMethods") or []):
+                names.append(m["name"].replace("models/", ""))
+        _model_cache["gemini"] = names
+    except Exception:
+        _model_cache["gemini"] = []
+    return _model_cache["gemini"]
+
+
+def openrouter_free_models():
+    if _model_cache["openrouter_free"] is not None:
+        return _model_cache["openrouter_free"]
+    try:
+        req = urllib.request.Request("https://openrouter.ai/api/v1/models",
+                                     headers={"User-Agent": "videofx/2.0"})
+        data = json.loads(urllib.request.urlopen(req, timeout=20).read().decode())
+        free = []
+        for m in data.get("data", []):
+            price = m.get("pricing") or {}
+            if str(price.get("prompt", "1")).lower() not in ("0", "0.0", ""):
+                continue
+            if str(price.get("completion", "1")).lower() not in ("0", "0.0", ""):
+                continue
+            free.append(m["id"])
+        pref = ("deepseek", "llama", "qwen", "mistral", "gemma", "glm")
+        free.sort(key=lambda s: next((i for i, p in enumerate(pref) if p in s.lower()), len(pref)))
+        _model_cache["openrouter_free"] = free
+    except Exception:
+        _model_cache["openrouter_free"] = []
+    return _model_cache["openrouter_free"]
 
 ENV_KEYS = {
     "openrouter": ["OPENROUTER_API_KEY", "OPENROUTER_KEY"],
@@ -44,8 +86,9 @@ SYSTEM_PROMPT = (
     '{"title": "titulo curto em caixa alta", "scenes": ["fala da cena 1", "fala da cena 2", ...]}. '
     "Regras para as falas: português natural falado (para narração), frases de no máximo 12 palavras, "
     "primeira cena é um gancho forte, última cena é uma chamada para ação curta. Você escreve roteiros "
-    "originais, específicos e concretos: cote números, nomes e exemplos reais do tema, evite frases "
-    "genéricas de apresentação ('neste vídeo', 'vamos ver'). NÃO use markdown, não escreva nada fora do JSON."
+    "originais e concretos, mas SÓ fatos amplos e verificáveis: se não tiver certeza de um número, data "
+    "ou nome, seja geral em vez de inventar detalhes precisos. Evite apresentações vazias ('neste vídeo', "
+    "'vamos ver'). NÃO use markdown, não escreva nada fora do JSON."
 )
 
 
@@ -156,6 +199,42 @@ def _chat_gemini(system, user, model, api_key):
     return "".join(p["text"] for p in parts if "text" in p)
 
 
+def candidate_models(cfg, provider, key):
+    models = []
+    chosen = (cfg.get("models") or {}).get(provider)
+    if chosen:
+        models.append(chosen)
+    elif provider == cfg.get("provider") and cfg.get("model"):
+        models.append(cfg["model"])
+    if provider == "gemini":
+        avail = gemini_models(key)
+        if avail:
+            ordered = [m for m in GEMINI_PREF if m in avail]
+            ordered += [m for m in avail if "flash" in m.lower()]
+            ordered += avail
+            for m in ordered:
+                if m not in models:
+                    models.append(m)
+        models.append(DEFAULT_MODELS[provider])
+        for m in MODEL_FALLBACKS.get(provider, []):
+            if m not in models:
+                models.append(m)
+    elif provider == "openrouter":
+        models.append(DEFAULT_MODELS[provider])
+        for m in MODEL_FALLBACKS.get(provider, []):
+            if m not in models:
+                models.append(m)
+        for m in openrouter_free_models()[:3]:
+            if m not in models:
+                models.append(m)
+    else:
+        models.append(DEFAULT_MODELS[provider])
+        for m in MODEL_FALLBACKS.get(provider, []):
+            if m not in models:
+                models.append(m)
+    return models
+
+
 def generate_script(cfg):
     chain = script_chain(cfg)
     if not chain:
@@ -171,14 +250,7 @@ def generate_script(cfg):
         if not key:
             tried.append(f"{provider}:sem chave")
             continue
-        models = []
-        chosen = (cfg.get("models") or {}).get(provider)
-        if chosen:
-            models.append(chosen)
-        elif provider == cfg.get("provider") and cfg.get("model"):
-            models.append(cfg["model"])
-        models += [DEFAULT_MODELS[provider]] if DEFAULT_MODELS[provider] not in models else []
-        models += [m for m in MODEL_FALLBACKS.get(provider, []) if m not in models]
+        models = candidate_models(cfg, provider, key)
         for model in models:
             try:
                 content = chat(provider, SYSTEM_PROMPT, user, model, key)

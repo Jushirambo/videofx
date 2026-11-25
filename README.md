@@ -147,10 +147,11 @@ export HF_TOKEN=hf_...
 }
 ```
 
-Modelos base:
-- **Gemini:** `gemini-2.5-flash`
-- **OpenRouter:** `meta-llama/llama-3.3-70b-instruct` (qualquer modelo de chat serve)
-- **HuggingFace:** `meta-llama/Llama-3.1-8B-Instruct` (via router.huggingface.co)
+Modelos: não fixe um nome — o VideoFX **descobre dinamicamente** o que está disponível:
+- **Gemini:** lista os modelos disponíveis na sua chave (`v1beta/models`) e tenta os flash mais novos
+- **OpenRouter:** tenta o modelo padrão e, se a chave estourar limite, cai para os modelos **gratuitos reais** do dia (via `/models`, preço zero)
+- **HuggingFace:** exige créditos do Inference Providers ou plano PRO — sem isso, o provedor falha rápido e a cadeia segue
+- Prompts de roteiro incluem guardas anti-alucinação: só fatos verificáveis, sem inventar números/datas precisos
 
 ## Voz por IA — ElevenLabs
 
