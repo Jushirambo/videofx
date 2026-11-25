@@ -37,11 +37,14 @@ DEFAULTS = {
     "transitions": ["fade", "slideleft", "zoomin", "smoothleft", "circleopen"],
     "transition_duration": 0.5,
     "subtitle_style": "pop",
-    "particles": True,
-    "shine": True,
-    "vignette": True,
-    "color_boost": True,
-    "progress_bar": True,
+    "particles": False,
+    "shine": False,
+    "vignette": False,
+    "color_boost": False,
+    "progress_bar": False,
+    "subtitle_position": "bottom",
+    "subtitle_y": None,
+    "numbered": False,
 }
 
 ASPECTS = {

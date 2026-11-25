@@ -15,7 +15,7 @@ PALETTES = [
     [(16, 33, 29), (7, 15, 13), (98, 171, 128), (255, 226, 148)],
 ]
 
-PROMPTS_SUFFIX = ", cinematic lighting, dramatic composition, high detail, vibrant colors, vertical 9:16 composition, no text, no watermark"
+PROMPTS_SUFFIX = ", cinematic lighting, natural colors, film photography, high detail, vertical 9:16 composition, no text, no watermark"
 
 STOCK_SUFFIX = " vertical cinematic background"
 

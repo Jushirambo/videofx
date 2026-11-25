@@ -32,6 +32,21 @@ def run(cmd, cwd):
         raise RuntimeError("ffmpeg falhou:\n" + p.stderr.decode()[-1500:])
 
 
+def parse_labels(scenes):
+    labels, texts = [], []
+    for i, t in enumerate(scenes):
+        if "|" in t:
+            lab, _, body = t.partition("|")
+            lab = lab.strip()
+            if lab and not lab.lower().startswith("http"):
+                labels.append(lab)
+                texts.append(body.strip() or t)
+                continue
+        labels.append(f"FATO {i + 1}/{len(scenes)}")
+        texts.append(t)
+    return labels, texts
+
+
 def wrap_chunks(text, max_chars):
     words = text.split()
     chunks, cur = [], ""
@@ -100,11 +115,17 @@ def xfade_chain(clip_paths, visual_durs, transitions, td, work):
     return merged
 
 
+SUBTITLE_ANCHORS = {"bottom": 0.76, "middle": 0.50, "top": 0.12}
+
+
 def subtitle_chain(scenes, starts, visual_durs, cfg, work):
     style = cfg.get("subtitle_style", "pop")
     size = cfg["subtitle_size"]
     H = cfg["resolution"][1]
-    base_y = int(H * 0.76)
+    if cfg.get("subtitle_y"):
+        base_y = int(H * max(0.02, min(1.0, float(cfg["subtitle_y"]))))
+    else:
+        base_y = int(H * SUBTITLE_ANCHORS.get(cfg.get("subtitle_position", "bottom"), 0.76))
     parts = []
     idx = 0
     for scene_text, s0, d in zip(scenes, starts, visual_durs):
@@ -137,6 +158,23 @@ def subtitle_chain(scenes, starts, visual_durs, cfg, work):
                     f"drawtext={common}:shadowx=3:shadowy=3:shadowcolor=black@0.9:"
                     f"x=(w-text_w)/2:y={base_y}:enable='between(t,{s:.2f},{e:.2f})'"
                 )
+    return ",".join(parts)
+
+
+def badge_chain(labels, starts, visual_durs, cfg, work):
+    size = max(30, int(cfg["subtitle_size"] * 0.55))
+    parts = []
+    for i, label in enumerate(labels):
+        if not label:
+            continue
+        path = f"badge_{i}.txt"
+        with open(os.path.join(work, path), "w", encoding="utf-8") as f:
+            f.write(label)
+        parts.append(
+            f"drawtext=fontfile={FONT}:textfile={path}:fontsize={size}:fontcolor=white:"
+            f"borderw=3:bordercolor=black:box=1:boxcolor=#e94560@0.85:boxborderw=14:"
+            f"x=w-text_w-36:y=30:enable='between(t,{starts[i]:.2f},{starts[i] + visual_durs[i] - 0.1:.2f})'"
+        )
     return ",".join(parts)
 
 
@@ -206,6 +244,12 @@ def render(cfg, keep_temp=False):
         from .scriptgen import build_scenes
         scenes = build_scenes(cfg["topic"], n_scenes=cfg.get("n_scenes", 5))
     title = cfg.get("title") or llm_title or cfg.get("topic")
+    labels = None
+    if cfg.get("numbered"):
+        labels, scenes = parse_labels(scenes)
+        if not cfg.get("title") and not llm_title:
+            topic_u = str(cfg.get("topic", "")).upper()
+            title = f"{len(scenes)} {topic_u}" if topic_u else f"{len(scenes)} FATOS"
     print(f"[script] {len(scenes)} cenas | título: {title}")
 
     seg_paths, scene_durs = [], []
@@ -282,8 +326,10 @@ def render(cfg, keep_temp=False):
     total = acc
 
     subs = subtitle_chain(scenes, starts, visual_durs, cfg, work)
+    badges = badge_chain(labels, starts, visual_durs, cfg, work) if labels else ""
     title_f = title_chain(title, cfg, work)
-    graph = [f"[0:v]" + title_f.lstrip(",") + (("," + subs) if subs else "") + "[vsub]"]
+    overlay_text = ",".join(p for p in (title_f.lstrip(","), subs, badges) if p)
+    graph = [f"[0:v]" + overlay_text + "[vsub]"]
     cur = "vsub"
     next_input_idx = 1
     overlay_inputs = []

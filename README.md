@@ -110,11 +110,14 @@ O vídeo final é salvo em `out/`.
     "subtitle_max_chars": 26,                      // quebra de legenda
     "scene_padding": 0.7,
     "min_scene_duration": 2.5,
-    "particles": true,                             // partículas flutuantes com glow
-    "shine": true,                                 // varredura de brilho periódica
-    "vignette": true,                              // escurecimento nas bordas
-    "color_boost": true,                           // contraste/saturação realçados
-    "progress_bar": true,                          // barra de progresso no rodapé
+    "particles": false,                            // partículas (off por padrão na v4)
+    "shine": false,                                // varredura de brilho
+    "vignette": false,                             // escurecimento nas bordas
+    "color_boost": false,                          // contraste/saturação realçados
+    "progress_bar": false,                         // barra de progresso no rodapé
+    "subtitle_position": "bottom",                 // bottom | middle | top
+    "subtitle_y": null,                            // afinar: 0.0 (topo) a 1.0 (base)
+    "numbered": false,                             // badge por cena: FATO N/M (ou rótulo custom)
     "allow_ai_images": true,                       // tenta IA gratuita por cena
     "image_urls": ["https://.../img1.jpg"],        // opcional: imagens prontas por cena
     "output_name": "demo_universo.mp4"
