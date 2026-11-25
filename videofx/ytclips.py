@@ -41,6 +41,25 @@ def spec_source(spec):
     return spec.get("url") or spec.get("source")
 
 
+CLIENT_ATTEMPTS = (None, ("ios", "android"), ("tv",))
+BOT_HINT = "YouTube bloqueou o download deste IP ('Sign in to confirm you're not a bot'). " \
+           "Salve um secret YT_COOKIES no Colab com o conteúdo de um cookies.txt do YouTube logado."
+
+
+def _cookies_file():
+    raw = os.environ.get("YT_COOKIES", "").strip()
+    if not raw:
+        return None
+    if os.path.exists(raw):
+        return raw
+    if not (raw.startswith("#") or "\t" in raw):
+        return None
+    dest = os.path.join(os.path.expanduser("~"), ".videofx_cookies.txt")
+    with open(dest, "w") as f:
+        f.write(raw + "\n")
+    return dest
+
+
 def _shim_dir():
     bin_dir = os.path.join(os.path.expanduser("~"), ".videofx_bin")
     os.makedirs(bin_dir, exist_ok=True)
@@ -77,7 +96,8 @@ def download_clip(spec, dest, height=720):
         f"bv*[height<={height}]+ba/b"
     )
     logger = _Logger()
-    opts = {
+    cookies = _cookies_file()
+    base = {
         "format": fmt,
         "download_ranges": ranges,
         "force_keyframes_at_cuts": True,
@@ -90,20 +110,33 @@ def download_clip(spec, dest, height=720):
         "retries": 2,
         "socket_timeout": 30,
     }
-    try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            ydl.download([src])
-    except Exception as e:
-        tail = " | ".join(logger.msgs[-2:])
-        raise RuntimeError(f"{str(e)[:200]}{(' | ' + tail[:300]) if tail else ''}")
-    hits = sorted(glob.glob(dest + ".*"))
-    if not hits:
-        raise RuntimeError("download sem resultado" +
-                           (" | " + " | ".join(logger.msgs[-2:]) if logger.msgs else ""))
-    if not hits[0].endswith(".mp4"):
-        os.rename(hits[0], dest + ".mp4")
-        hits = [dest + ".mp4"]
-    return hits[0]
+    last_err = ""
+    for clients in CLIENT_ATTEMPTS:
+        logger.msgs.clear()
+        opts = dict(base)
+        if cookies:
+            opts["cookiefile"] = cookies
+        if clients:
+            opts["extractor_args"] = {"youtube": {"player_client": list(clients)}}
+        try:
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                ydl.download([src])
+        except Exception as e:
+            tail = " | ".join(logger.msgs[-2:])
+            last_err = f"{str(e)[:200]}{(' | ' + tail[:300]) if tail else ''}"
+            continue
+        hits = sorted(glob.glob(dest + ".*"))
+        if hits:
+            if not hits[0].endswith(".mp4"):
+                os.rename(hits[0], dest + ".mp4")
+                hits = [dest + ".mp4"]
+            return hits[0]
+        last_err = ("download sem resultado"
+                    + (" | " + " | ".join(logger.msgs[-2:]) if logger.msgs else ""))
+    joined = " | ".join(m for m in logger.msgs if m)
+    if "not a bot" in joined or "Sign in to confirm" in joined:
+        last_err = BOT_HINT + " " + last_err
+    raise RuntimeError(last_err)
 
 
 def convert_clip(raw, dest, size, fps, duration, work, offset=0.0):

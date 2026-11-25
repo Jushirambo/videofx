@@ -4,3 +4,8 @@ audio_out/*.wav
 voices/*.onnx
 voices/*.json
 out/v3_test.mp4
+images_out/
+audio_out/
+out/
+work/
+*.log

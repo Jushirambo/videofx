@@ -28,6 +28,12 @@ divisa-fonte compartilham **um único download** e recebem trechos consecutivos 
 fica pelo início, cena 2 continua de onde a 1 parou) — sem re-baixar o mesmo trecho.
 Se uma fonte falhar, as cenas dela voltam para a cadeia de imagens automaticamente.
 
+**Bloqueio "Sign in to confirm you're not a bot":** IPs de datacenter (Colab/Kaggle) às vezes
+precisam de autenticação. O download tentado em cadeia usa os clients `web → ios+android → tv`;
+se ainda assim falhar, exporte um `cookies.txt` do YouTube logado (extensão
+"Get cookies.txt LOCALLY") e salve o conteúdo no Colab como secret `YT_COOKIES`
+(ou exporte a env `YT_COOKIES` com o conteúdo do arquivo).
+
 ```jsonc
 {
     "yt_clips": [
