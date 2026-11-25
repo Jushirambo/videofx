@@ -7,6 +7,37 @@ vinheta e barra de progresso — tudo empacotado com ffmpeg.
 
 **Demo:** [demo_universo.mp4](https://github.com/Jushirambo/videofx/raw/main/out/demo_universo.mp4)
 
+## Cadeias de fallback (nunca fica sem conteúdo)
+
+Cada camada tenta o melhor recurso disponível e degrada com elegância ao longo da cadeia:
+
+| Camada | Cadeia (ordem) | Chaves (env ou Colab Secrets) |
+|---|---|---|
+| **Roteiro** | Gemini → OpenRouter → HuggingFace → template local | `GEMINI_API_KEY` — `OPENROUTER_API_KEY`/`OPENROUTER_KEY` — `HF_TOKEN` |
+| **Voz** | ElevenLabs multilingual v2 → Piper pt-BR neural | `ELEVENLABS_API_KEY`/`ELEVEN_LABS_API_KEY` |
+| **Imagens** | Pollinations (FLUX) → AI Horde → Pixabay (acervo) → fundo procedural | `POLINATIONS` — `AIHORDE` — `PIXABAY_KEY` |
+| **Cenas** | trecho do YouTube → imagens IA → procedural | — |
+
+Use `"provider": "auto"` para tentar toda a cadeia de roteiro automaticamente.
+
+## Trechos do YouTube
+
+Cenas podem usar trechos de vídeos do YouTube como fundo (download parcial via `yt-dlp`),
+recortados e convertidos para o formato do vídeo (1080×1920, mute). Se um clipe falhar,
+a cena volta para a cadeia de imagens automaticamente.
+
+```jsonc
+{
+    "yt_clips": [
+        "https://youtube.com/watch?v=abc123|12",      // URL | segundo inicial
+        "nebula cosmica 4k|30",                       // termo de busca | segundo
+        {"query": "saturno 4k", "start": 5}            // dict equivalente
+    ],
+    "yt_auto": false,          // busca clipes automaticamente a partir do tema/cena
+    "yt_height": 720
+}
+```
+
 ## Pipeline
 
 ```
@@ -55,12 +86,18 @@ O vídeo final é salvo em `out/`.
     "aspect": "9:16",                              // 9:16, 16:9 ou 1:1
     "voice": "voices/pt_BR-faber-medium.onnx",     // voz Piper
 
-    "provider": "template",                        // template | openrouter | huggingface
+    "provider": "template",                        // auto | template | openrouter | huggingface | gemini
     "model": null,                                 // ex.: meta-llama/llama-3.3-70b-instruct
-    "api_key": null,                               // ou env OPENROUTER_API_KEY / HF_TOKEN
+    "api_key": null,                               // chave do provedor principal
+    "script_providers": null,                      // cadeia custom, ex.: ["gemini", "openrouter"]
+    "models": null,                                // ex.: {"gemini": "gemini-2.5-flash"}
+    "api_keys": null,                              // ex.: {"openrouter": "sk-or-..."}
     "script_style": "viral",                       // viral | educativo | storytelling
     "n_scenes": 5,
     "duration_target": 30,                         // duração alvo do roteiro IA (s)
+    "tts_providers": ["elevenlabs", "piper"],      // cadeia de voz
+    "elevenlabs_voice": "rachel",                  // rachel | drew | bella | gabriel | michele
+    "image_providers": ["pollinations", "horde", "pixabay"],
 
     "transitions": ["fade", "slideleft", "zoomin", "smoothleft", "circleopen"],
     "transition_duration": 0.5,
@@ -82,29 +119,39 @@ O vídeo final é salvo em `out/`.
 }
 ```
 
-## Roteiro por IA (OpenRouter / HuggingFace)
+## Roteiro por IA
 
 Com `provider` diferente de `template`, o roteiro é escrito por um LLM em JSON
-({title, scenes[]}) com estilo viral, educativo ou storytelling. Se a chamada
-falhar, cai automaticamente no template local.
+({title, scenes[]}) com estilo viral, educativo ou storytelling — prompts exigem
+cenários concretos, números e nomes reais para evitar conteúdo genérico. Se toda
+a cadeia falhar, cai automaticamente no template local. Se a chamada falhar
+parcialmente, o próximo provedor da cadeia assume.
 
 ```bash
-export OPENROUTER_API_KEY=sk-or-...   # ou HF_TOKEN=hf_...
+export GEMINI_API_KEY=...      # preferred pelo modo auto
+export OPENROUTER_API_KEY=sk-or-...
+export HF_TOKEN=hf_...
 ```
 
 ```jsonc
 {
     "topic": "Por que o céu é azul",
-    "provider": "openrouter",
-    "model": "meta-llama/llama-3.3-70b-instruct",
+    "provider": "auto",           // tenta Gemini → OpenRouter → HF
     "script_style": "viral",
     "duration_target": 35
 }
 ```
 
 Modelos base:
+- **Gemini:** `gemini-2.5-flash`
 - **OpenRouter:** `meta-llama/llama-3.3-70b-instruct` (qualquer modelo de chat serve)
 - **HuggingFace:** `meta-llama/Llama-3.1-8B-Instruct` (via router.huggingface.co)
+
+## Voz por IA — ElevenLabs
+
+Com `ELEVENLABS_API_KEY` no ambiente, a narração usa ElevenLabs `multilingual v2`
+(pt-BR nativo, vozes rachel/drew/bella/gabriel/michele). Sem a chave, usa Piper
+pt-BR (open source, gratuito).
 
 ## Efeitos visuais
 
@@ -133,9 +180,10 @@ Para trocar as imagens, basta substituir os arquivos em `images_out/` e rodar de
 main.py            CLI
 videofx/config.py  defaults + resolução por aspecto
 videofx/scriptgen  roteiro automático (hooks + fillers) ou manual
-videofx/llm.py     roteiro via OpenRouter / HuggingFace (fallback para template)
-videofx/tts.py     Piper TTS pt-BR (voz auto-baixada)
-videofx/images.py  imagens: locais, URLs, IA ou procedural
+videofx/llm.py     roteiro IA em cadeia: Gemini → OpenRouter → HuggingFace
+videofx/tts.py     voz em cadeia: ElevenLabs → Piper pt-BR (voz auto-baixada)
+videofx/images.py  imagens em cadeia: Pollinations → AI Horde → Pixabay → procedural
+videofx/ytclips.py trechos de YouTube (yt-dlp) recortados e convertidos p/ 9:16
 videofx/music.py   música procedural (chords + reverb)
 videofx/effects.py partículas com glow e varredura de brilho (frames numpy)
 videofx/render.py  montagem ffmpeg (zoompan, xfade, drawtext, blends, amix)
